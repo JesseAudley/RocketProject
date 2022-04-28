@@ -1,609 +1,1076 @@
 
-
-const _VS = `
-uniform float pointMultiplier;
-
-attribute float size;
-attribute float angle;
-attribute vec4 colour;
-
-varying vec4 vColour;
-varying vec2 vAngle;
-
-void main() {
-  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-
-  gl_Position = projectionMatrix * mvPosition;
-  gl_PointSize = size * pointMultiplier / gl_Position.w;
-
-  vAngle = vec2(cos(angle), sin(angle));
-  vColour = colour;
-}`;
-
-const _FS = `
-
-uniform sampler2D diffuseTexture;
-
-varying vec4 vColour;
-varying vec2 vAngle;
-
-void main() {
-  vec2 coords = (gl_PointCoord - 0.5) * mat2(vAngle.x, vAngle.y, -vAngle.y, vAngle.x) + 0.5;
-  gl_FragColor = texture2D(diffuseTexture, coords) * vColour;
-}`;
-
-
-class LinearSpline {
-    constructor(lerp) {
-        this._points = [];
-        this._lerp = lerp;
-    }
-
-    AddPoint(t, d) {
-        this._points.push([t, d]);
-    }
-
-    Get(t) {
-        let p1 = 0;
-
-        for (let i = 0; i < this._points.length; i++) {
-            if (this._points[i][0] >= t) {
-                break;
-            }
-            p1 = i;
-        }
-
-        const p2 = Math.min(this._points.length - 1, p1 + 1);
-
-        if (p1 == p2) {
-            return this._points[p1][1];
-        }
-
-        return this._lerp(
-            (t - this._points[p1][0]) / (
-                this._points[p2][0] - this._points[p1][0]),
-            this._points[p1][1], this._points[p2][1]);
-    }
-}
-
-
-class ParticleSystem {
-    constructor(params) {
-        const uniforms = {
-            diffuseTexture: {
-                value: new THREE.TextureLoader().load('./resources/fire.png')
-            },
-            pointMultiplier: {
-                value: window.innerHeight / (2.0 * Math.tan(0.5 * 60.0 * Math.PI / 180.0))
-            }
-        };
-
-        this._material = new THREE.ShaderMaterial({
-            uniforms: uniforms,
-            vertexShader: _VS,
-            fragmentShader: _FS,
-            blending: THREE.AdditiveBlending,
-            depthTest: true,
-            depthWrite: false,
-            transparent: true,
-            vertexColors: true
-        });
-
-        this._camera = params.camera;
-        this._particles = [];
-
-        this._geometry = new THREE.BufferGeometry();
-        this._geometry.setAttribute('position', new THREE.Float32BufferAttribute([], 3));
-        this._geometry.setAttribute('size', new THREE.Float32BufferAttribute([], 1));
-        this._geometry.setAttribute('colour', new THREE.Float32BufferAttribute([], 4));
-        this._geometry.setAttribute('angle', new THREE.Float32BufferAttribute([], 1));
-
-        this._points = new THREE.Points(this._geometry, this._material);
-
-        params.parent.add(this._points);
-
-        this._alphaSpline = new LinearSpline((t, a, b) => {
-            return a + t * (b - a);
-        });
-        this._alphaSpline.AddPoint(0.0, 0.0);
-        this._alphaSpline.AddPoint(0.1, 1.0);
-        this._alphaSpline.AddPoint(0.6, 1.0);
-        this._alphaSpline.AddPoint(1.0, 0.0);
-
-        this._colourSpline = new LinearSpline((t, a, b) => {
-            const c = a.clone();
-            return c.lerp(b, t);
-        });
-        this._colourSpline.AddPoint(0.0, new THREE.Color(0xFFFF80));
-        this._colourSpline.AddPoint(1.0, new THREE.Color(0xFF8080));
-
-        this._sizeSpline = new LinearSpline((t, a, b) => {
-            return a + t * (b - a);
-        });
-        this._sizeSpline.AddPoint(0.0, 1.0);
-        this._sizeSpline.AddPoint(0.5, 5.0);
-        this._sizeSpline.AddPoint(1.0, 1.0);
-
-        document.addEventListener('keyup', (e) => this._onKeyUp(e), false);
-
-        this._UpdateGeometry();
-    }
-
-    _onKeyUp(event) {
-        switch (event.keyCode) {
-            case 32: // SPACE
-                this._AddParticles();
-                break;
-        }
-    }
-
-    _AddParticles(timeElapsed) {
-        if (!this.gdfsghk) {
-            this.gdfsghk = 0.0;
-        }
-        this.gdfsghk += timeElapsed;
-        const n = Math.floor(this.gdfsghk * 20.0);
-        this.gdfsghk -= n / 20.0;
-
-        for (let i = 0; i < n; i++) {
-            const life = (Math.random() * 0.75 + 0.25) * 10.0;
-            this._particles.push({
-                position: new THREE.Vector3(
-                    (Math.random() * 2 - 10) * 1.0,
-                    (Math.random() * 2 - 10) * 1.0,
-                    (Math.random() * 2 - 10) * 1.0),
-                size: (Math.random() * 0.5 + 0.5) * 10.0,
-                colour: new THREE.Color(),
-                alpha: 1.0,
-                life: life,
-                maxLife: life,
-                rotation: Math.random() * 2.0 * Math.PI,
-                velocity: new THREE.Vector3(0, -15, 0),
-            });
-        }
-    }
-
-    _UpdateGeometry() {
-        const positions = [];
-        const sizes = [];
-        const colours = [];
-        const angles = [];
-
-        for (let p of this._particles) {
-            positions.push(p.position.x, p.position.y, p.position.z);
-            colours.push(p.colour.r, p.colour.g, p.colour.b, p.alpha);
-            sizes.push(p.currentSize);
-            angles.push(p.rotation);
-        }
-
-        this._geometry.setAttribute(
-            'position', new THREE.Float32BufferAttribute(positions, 3));
-        this._geometry.setAttribute(
-            'size', new THREE.Float32BufferAttribute(sizes, 1));
-        this._geometry.setAttribute(
-            'colour', new THREE.Float32BufferAttribute(colours, 4));
-        this._geometry.setAttribute(
-            'angle', new THREE.Float32BufferAttribute(angles, 1));
-
-        this._geometry.attributes.position.needsUpdate = true;
-        this._geometry.attributes.size.needsUpdate = true;
-        this._geometry.attributes.colour.needsUpdate = true;
-        this._geometry.attributes.angle.needsUpdate = true;
-    }
-
-    _UpdateParticles(timeElapsed) {
-        for (let p of this._particles) {
-            p.life -= timeElapsed;
-        }
-
-        this._particles = this._particles.filter(p => {
-            return p.life > 0.0;
-        });
-
-        for (let p of this._particles) {
-            const t = 1.0 - p.life / p.maxLife;
-
-            p.rotation += timeElapsed * 0.5;
-            p.alpha = this._alphaSpline.Get(t);
-            p.currentSize = p.size * this._sizeSpline.Get(t);
-            p.colour.copy(this._colourSpline.Get(t));
-
-            p.position.add(p.velocity.clone().multiplyScalar(timeElapsed));
-
-            const drag = p.velocity.clone();
-            drag.multiplyScalar(timeElapsed * 0.5);
-            drag.x = Math.sign(p.velocity.x) * Math.min(Math.abs(drag.x), Math.abs(p.velocity.x));
-            drag.y = Math.sign(p.velocity.y) * Math.min(Math.abs(drag.y), Math.abs(p.velocity.y));
-            drag.z = Math.sign(p.velocity.z) * Math.min(Math.abs(drag.z), Math.abs(p.velocity.z));
-            p.velocity.sub(drag);
-        }
-
-        this._particles.sort((a, b) => {
-            const d1 = this._camera.position.distanceTo(a.position);
-            const d2 = this._camera.position.distanceTo(b.position);
-
-            if (d1 > d2) {
-                return -1;
-            }
-
-            if (d1 < d2) {
-                return 1;
-            }
-
-            return 0;
-        });
-    }
-
-    Step(timeElapsed) {
-        this._AddParticles(timeElapsed);
-        this._UpdateParticles(timeElapsed);
-        this._UpdateGeometry();
-    }
-}
-
-class ParticleSystemDemo {
-    constructor() {
-        this._Initialize();
-    }
-
-    _Initialize() {
-        this._threejs = new THREE.WebGLRenderer({
-            antialias: true,
-        });
-        this._threejs.shadowMap.enabled = true;
-        this._threejs.shadowMap.type = THREE.PCFSoftShadowMap;
-        this._threejs.setPixelRatio(window.devicePixelRatio);
-        this._threejs.setSize(window.innerWidth, window.innerHeight);
-
-        document.body.appendChild(this._threejs.domElement);
-
-        window.addEventListener('resize', () => {
-            this._OnWindowResize();
-        }, false);
-
-        const fov = 60;
-        const aspect = 1920 / 1080;
-        const near = 1.0;
-        const far = 1000.0;
-        this._camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
-        this._camera.position.set(25, 10, 0);
-
-        this._scene = new THREE.Scene();
-
-        let light = new THREE.DirectionalLight(0xFFFFFF, 1.0);
-        light.position.set(20, 100, 10);
-        light.target.position.set(0, 0, 0);
-        light.castShadow = true;
-        light.shadow.bias = -0.001;
-        light.shadow.mapSize.width = 2048;
-        light.shadow.mapSize.height = 2048;
-        light.shadow.camera.near = 0.1;
-        light.shadow.camera.far = 500.0;
-        light.shadow.camera.near = 0.5;
-        light.shadow.camera.far = 500.0;
-        light.shadow.camera.left = 100;
-        light.shadow.camera.right = -100;
-        light.shadow.camera.top = 100;
-        light.shadow.camera.bottom = -100;
-        this._scene.add(light);
-
-        light = new THREE.AmbientLight(0x101010);
-        this._scene.add(light);
-
-        const controls = new THREE.OrbitControls(
-            this._camera, this._threejs.domElement);
-        controls.target.set(0, 0, 0);
-        controls.update();
-
-        const loader = new THREE.CubeTextureLoader();
-        const texture = loader.load([
-            './resources/posx.jpg',
-            './resources/negx.jpg',
-            './resources/posy.jpg',
-            './resources/negy.jpg',
-            './resources/posz.jpg',
-            './resources/negz.jpg',
-        ]);
-        // this._scene.background = texture;
-
-        this._particles = new ParticleSystem({
-            parent: this._scene,
-            camera: this._camera,
-        });
-
-        // this._LoadModel();
-
-        this._previousRAF = null;
-        this._RAF();
-    }
-
-    // _LoadModel() {
-    //     const loader = new THREE.GLTFLoader();
-    //     loader.load('./resources/rocket/Rocket_Ship_01.gltf', (gltf) => {
-    //         gltf.scene.traverse(c => {
-    //             c.castShadow = true;
-    //         });
-    //         this._scene.add(gltf.scene);
-    //     });
-    // }
-
-    _OnWindowResize() {
-        this._camera.aspect = window.innerWidth / window.innerHeight;
-        this._camera.updateProjectionMatrix();
-        this._threejs.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    _RAF() {
-        requestAnimationFrame((t) => {
-            if (this._previousRAF === null) {
-                this._previousRAF = t;
-            }
-
-            this._RAF();
-
-            this._threejs.render(this._scene, this._camera);
-            this._Step(t - this._previousRAF);
-            this._previousRAF = t;
-        });
-    }
-
-    _Step(timeElapsed) {
-        const timeElapsedS = timeElapsed * 0.001;
-
-        this._particles.Step(timeElapsedS);
-    }
-}
-
-
-let _APP = null;
-
-window.addEventListener('DOMContentLoaded', () => {
-    _APP = new ParticleSystemDemo();
+document.addEventListener('DOMContentLoaded', (event) => {
+    window.scrollTo(0, document.body.scrollHeight);
+    console.log('DOM fully loaded and parsed', document.body.scrollHeight);
 });
 
 
-// console.log('test')
-// window.scrollTo(0, 11218);
+let canvas, renderer;
 
-// document.addEventListener('DOMContentLoaded', (event) => {
-//     window.scrollTo(0, document.body.scrollHeight);
-//     console.log('DOM fully loaded and parsed', document.body.scrollHeight);
-// }); 
+const scene = new THREE.Scene();
+const loader = new THREE.GLTFLoader();
+const objects = {
+    sun: {
+        type: 'planet',
+        model: new THREE.Object3D(),
+        modelPath: 'models/Sun_1_1391000.glb',
+        scale: new THREE.Vector3(0.1, 0.1, 0.1),
+    },
+    mercury: {
+        type: 'planet',
+        model: new THREE.Object3D(),
+        modelPath: 'models/Mercury_1_4878.glb',
+        scale: new THREE.Vector3(0.009, 0.009, 0.009),
+    },
+    venus: {
+        type: 'planet',
+        model: new THREE.Object3D(),
+        modelPath: 'models/Venus(surface)_1_12103_modified.glb',
+        scale: new THREE.Vector3(0.013, 0.013, 0.013),
+    },
+    moon: {
+        //https://www.turbosquid.com/3d-models/realistic-moon-photorealistic-2k-model-1277420
+        type: 'planet',
+        model: new THREE.Object3D(),
+        modelPath: 'models/moon.glb',
+        scale: new THREE.Vector3(1.8, 1.8, 1.8),
+    },
+    satellite: {
+        //https://sketchfab.com/3d-models/low-poly-satellite-964642731c274468bf9f7c03dbfdb8b9
+        type: 'object',
+        model: new THREE.Object3D(),
+        modelPath: 'models/satellite01.glb',
+        scale: new THREE.Vector3(0.5, 0.5, 0.5),
+    },
+    meteor: {
+        //https://www.turbosquid.com/3d-models/asteroid-space-planet-3ds-free/616773#
+        type: 'object',
+        model: new THREE.Object3D(),
+        modelPath: 'models/meteor.glb',
+        scale: new THREE.Vector3(0.1, 0.1, 0.1),
+    },
+
+    jet: {
+        //https://sketchfab.com/3d-models/f117-fighter-jet-04ef3c59a49647f9a036c334f3f52e72
+        type: 'object',
+        model: new THREE.Object3D(),
+        modelPath: 'models/jet.glb',
+        scale: new THREE.Vector3(0.2, 0.2, 0.2),
+    },
+    plane: {
+        //https://sketchfab.com/3d-models/boeing-787-dreamliner-3ba8a5275d0e41968b34d367c34e8f0f
+        type: 'object',
+        model: new THREE.Object3D(),
+        modelPath: 'models/plane.glb',
+        scale: new THREE.Vector3(0.2, 0.2, 0.2),
+    },
+    balloon: {
+        type: 'object',
+        model: new THREE.Object3D(),
+        modelPath: 'models/balloon.glb',
+        scale: new THREE.Vector3(0.04, 0.04, 0.04),
+    },
+};
+const rocket = {
+    name: 'rocket',
+    group: new THREE.Group(),
+    modelPath: 'models/SPACE SHUTTLE_modified.glb',
+    leftThruster: new THREE.Group(),
+    rightThruster: new THREE.Group(),
+    shuttle: new THREE.Group(),
+    fuelTank: new THREE.Group(),
+    scale: new THREE.Vector3(0.7, 0.7, 0.7),
+};
+
+const testmodel = new THREE.Object3D();
+init();
+animate();
+
+function init() {
+
+    canvas = document.querySelector('#c')
+
+    const content = document.querySelector('.container');
+
+    const fov = 45;
+    const aspect = window.innerWidth / window.innerHeight;
+    const near = 1;
+    const far = 2000;
+    const camera = new THREE.PerspectiveCamera(fov, 1, near, far);
+
+    camera.position.set(0, 0, 50);
+    // camera.position.set(0, 0, window.innerWidth / 30);
+    camera.lookAt(0, 0, 0);
+    // scene.add(camera);
+    scene.userData.camera = camera;
 
 
-'use strict';
+    const frustum = new THREE.Frustum()
+    const matrix = new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
+    frustum.setFromProjectionMatrix(matrix)
 
-/* global THREE */
 
-function main() {
-    const canvas = document.createElement('canvas');
-    const loader = new THREE.GLTFLoader();
-    const STLLoader = new THREE.STLLoader();
-    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
-    renderer.setScissorTest(true);
-    const sunModel = new THREE.Object3D();
-    const mercuryModel = new THREE.Object3D();
-    const venusModel = new THREE.Object3D();
-    const moonModel = new THREE.Object3D();
-    const rocketModel = new THREE.Object3D();
+    for (const desc in objects) {
+        console.log(objects[desc].modelPath);
+        loader.load(objects[desc].modelPath, function (gltf) {
+            objects[desc].model.scale.copy(objects[desc].scale);
+            objects[desc].model.add(gltf.scene);
+            objects[desc].model.traverseVisible((child) => {
+                if (child.isMesh) {
+                    // while (frustum.intersectsObject(child)) {
+                    //     objects[desc].model.position.y += 1;
+                    // }
+                    // child.geometry.position.y += 10000;
+                    // child.geometry.computeBoundingSphere()
+                    // console.log(child)
+                    // console.log(frustum.intersectsObject(child))
+                    // console.log(frustum.intersectsSphere(child.geometry.boundingSphere))
+                    // console.log(frustum.containsPoint(child.position))
+                    // console.log(frustum.containsPoint(objects[desc].model.position))
+                }
+            })
+            // while (frustum.intersectsObject(objects[desc].model)) {
+            //     objects[desc].model.position.y += 1;
+            // };
 
-    const sceneElements = [];
-    function addScene(elem, fn) {
-        const ctx = document.createElement('canvas').getContext('2d');
-        elem.appendChild(ctx.canvas);
-        sceneElements.push({ elem, ctx, fn });
+            scene.add(objects[desc].model);
+            // console.log(frustum.intersectsObject(objects[desc].model));
+        });
     }
 
-    function makeScene(elem) {
-        const scene = new THREE.Scene();
 
-        const fov = 45;
-        const aspect = 2;  // the canvas default
-        const near = 0.1;
-        const far = 5;
-        const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
-        camera.position.set(0, 1, 2);
-        camera.lookAt(0, 0, 0);
-        scene.add(camera);
 
-        const gridHelper = new THREE.GridHelper(10, 10);
-        scene.add(gridHelper);
+    loader.load(rocket.modelPath, function (gltf) {
+        rocket.group.scale.copy(rocket.scale);
 
-        const controls = new THREE.TrackballControls(camera, elem);
-        controls.noZoom = true;
-        controls.noPan = true;
+        rocket.leftThruster.add(gltf.scene.getObjectByName('SIDE_THRUSTER(LEFT)'));
+        rocket.shuttle.add(gltf.scene.getObjectByName('SPACE_SHUTTLE'));
+        rocket.fuelTank.add(gltf.scene.getObjectByName('ROCKET_BODY'));
+        rocket.rightThruster.add(gltf.scene.getObjectByName('SIDE_THRUSTER_(RIGHT)'));
 
-        {
-            const color = 0xFFFFFF;
-            const intensity = 1;
-            const light = new THREE.DirectionalLight(color, intensity);
-            light.position.set(-1, 2, 4);
-            scene.add(light);
-        }
+        rocket.group.add(rocket.leftThruster);
+        rocket.group.add(rocket.shuttle);
+        rocket.group.add(rocket.fuelTank);
+        rocket.group.add(rocket.rightThruster);
 
-        return { scene, camera, controls };
-    }
+        console.log(rocket.group)
+        // rocket.group.rotation.x = 10
 
-    const sceneInitFunctionsByName = {
-        'sun': (elem) => {
-            const { scene, camera, controls } = makeScene(elem);
-            loader.load('models/Sun_1_1391000.glb', function (gltf) {
+        scene.add(rocket.group);
+        rocket.group.traverse(function (test) {
+            // test.position.y += 10
+            // console.log(test)
+            if (test.isMesh) {
+                // test.position.y = 10
+                // console.log(frustum.intersectsObject(test))
+            }
+            // isVisible = true
+        })
 
-                sunModel.scale.set(0.001, 0.001, 0.001)
 
-                sunModel.add(gltf.scene)
-                scene.add(sunModel);
-
-                // render();
-
-            });
-            return (time, rect) => {
-                sunModel.rotation.y = time * .1;
-                camera.aspect = rect.width / rect.height;
-                camera.updateProjectionMatrix();
-                controls.handleResize();
-                controls.update();
-                renderer.render(scene, camera);
-            };
-        },
-        'mercury': (elem) => {
-            const { scene, camera, controls } = makeScene(elem);
-            loader.load('models/Mercury_1_4878.glb', function (gltf) {
-
-                mercuryModel.scale.set(0.001, 0.001, 0.001)
-
-                mercuryModel.add(gltf.scene)
-                scene.add(mercuryModel);
-
-                // render();
-
-            });
-            return (time, rect) => {
-                mercuryModel.rotation.y = time * .1;
-                camera.aspect = rect.width / rect.height;
-                camera.updateProjectionMatrix();
-                controls.handleResize();
-                controls.update();
-                renderer.render(scene, camera);
-            };
-        },
-        'venus': (elem) => {
-            const { scene, camera, controls } = makeScene(elem);
-            loader.load('models/Venus(surface)_1_12103.glb', function (gltf) {
-
-                venusModel.scale.set(0.001, 0.001, 0.001)
-
-                venusModel.add(gltf.scene)
-                scene.add(venusModel);
-
-                // render();
-
-            });
-            return (time, rect) => {
-                venusModel.rotation.y = time * .1;
-                camera.aspect = rect.width / rect.height;
-                camera.updateProjectionMatrix();
-                controls.handleResize();
-                controls.update();
-                renderer.render(scene, camera);
-            };
-        },
-        'moon': (elem) => {
-            const { scene, camera, controls } = makeScene(elem);
-            loader.load('models/Moon_1_3474.glb', function (gltf) {
-
-                moonModel.scale.set(0.001, 0.001, 0.001)
-
-                moonModel.add(gltf.scene)
-                scene.add(moonModel);
-
-                // render();
-
-            });
-            return (time, rect) => {
-                moonModel.rotation.y = time * .1;
-                camera.aspect = rect.width / rect.height;
-                camera.updateProjectionMatrix();
-                controls.handleResize();
-                controls.update();
-                renderer.render(scene, camera);
-            };
-        },
-        'rocket': (elem) => {
-            const { scene, camera, controls } = makeScene(elem);
-            STLLoader.load('models/saturnv_v2/S-II.stl', function (geometry) {
-
-                const material = new THREE.MeshPhongMaterial({ color: 0x666463, specular: 0x111111, shininess: 100 });
-                const mesh = new THREE.Mesh(geometry, material);
-
-                mesh.position.set(0, 1, -0.6);
-                mesh.rotation.set(0, Math.PI / 2, 2.8);
-                mesh.scale.set(0.003, 0.003, 0.003);
-
-                // mesh.castShadow = true;
-                // mesh.receiveShadow = true;
-
-                scene.add(mesh);
-
-                // moonModel.scale.set(0.001, 0.001, 0.001)
-
-                // moonModel.add(gltf.scene)
-                // scene.add(moonModel);
-
-                // render();
-
-            });
-            return (time, rect) => {
-                // mesh.rotation.y = time * .1;
-                camera.aspect = rect.width / rect.height;
-                camera.updateProjectionMatrix();
-                controls.handleResize();
-                controls.update();
-                renderer.render(scene, camera);
-            };
-        },
-    };
-
-    document.querySelectorAll('[data-diagram]').forEach((elem) => {
-        const sceneName = elem.dataset.diagram;
-        const sceneInitFunction = sceneInitFunctionsByName[sceneName];
-        const sceneRenderFunction = sceneInitFunction(elem);
-        addScene(elem, sceneRenderFunction);
+        gsapAnimation()
     });
 
-    function render(time) {
-        time *= 0.001;
 
-        for (const { elem, fn, ctx } of sceneElements) {
-            // get the viewport relative position opf this element
-            const rect = elem.getBoundingClientRect();
-            const { left, right, top, bottom, width, height } = rect;
-            // console.log(height);
-            const rendererCanvas = renderer.domElement;
 
-            const isOffscreen =
-                bottom < 0 ||
-                top > window.innerHeight ||
-                right < 0 ||
-                left > window.innerWidth;
+    // the element that represents the area we want to render the scene
+    scene.userData.element = canvas;
 
-            if (!isOffscreen) {
-                // make sure the renderer's canvas is big enough
-                if (rendererCanvas.width < width || rendererCanvas.height < height) {
-                    renderer.setSize(width, height, false);
-                }
 
-                // make sure the canvas for this area is the same size as the area
-                if (ctx.canvas.width !== width || ctx.canvas.height !== height) {
-                    ctx.canvas.width = width;
-                    ctx.canvas.height = height;
-                }
 
-                renderer.setScissor(0, 0, width, height);
-                renderer.setViewport(0, 0, width, height);
 
-                fn(time, rect);
+    // const controls = new THREE.OrbitControls(scene.userData.camera, scene.userData.element);
+    // controls.minDistance = 2;
+    // controls.maxDistance = 5;
+    // controls.enablePan = false;
+    // controls.enableZoom = false;
+    // scene.userData.controls = controls;
 
-                // copy the rendered scene to this element's canvas
-                ctx.globalCompositeOperation = 'copy';
-                ctx.drawImage(
-                    rendererCanvas,
-                    0, rendererCanvas.height - height, width, height,  // src rect
-                    0, 0, width, height);                              // dst rect
-            }
+    light = new THREE.PointLight(0xffffff, 1.5);
+    this.light.position.z = 50;
+    this.light.position.x = 70;
+    this.light.position.y = -20;
+    scene.add(light);
+    softLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(softLight);
+
+    // scene.add(new THREE.HemisphereLight(0xaaaaaa, 0x444444));
+
+    // const light = new THREE.DirectionalLight(0xffffff, 0.5);
+    // light.position.set(1, 1, 1);
+    // scene.add(light);
+
+
+
+
+    renderer = new THREE.WebGLRenderer({
+        canvas: canvas,
+        alpha: true,
+        antialias: true
+    });
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.setPixelRatio(window.devicePixelRatio);
+    // document.body.appendChild(renderer.domElement);
+
+    const defaultColourSplinePoints = [
+        {
+            life: 0.0,
+            value: 0xFFFF80,
+        },
+        {
+            life: 1.0,
+            value: 0xFF8080,
+        },
+    ];
+
+    const defaultSizeSplinePoints = [
+        {
+            life: 0.0,
+            value: 1.0,
+        },
+        {
+            life: 0.5,
+            value: 5.0,
+        },
+        {
+            life: 1.0,
+            value: 10.0,
+        },
+    ];
+
+    leftFlames = new ParticleSystem({
+        parent: scene,
+        camera: camera,
+        particleAmount: 30,
+        life: 5,
+        size: 3,
+        velocity: { x: 0, y: -10, z: 0 },
+        drag: 0.3,
+        colourSplinePoints: defaultColourSplinePoints,
+        sizeSplinePoints: defaultSizeSplinePoints,
+    });
+
+    rocket.leftThruster.add(leftFlames._points)
+
+    leftFlames._points.position.y = -10
+    leftFlames._points.position.z = 1.5
+
+
+    rightFlames = new ParticleSystem({
+        parent: scene,
+        camera: camera,
+        particleAmount: 30,
+        life: 5,
+        size: 3,
+        velocity: { x: 0, y: -10, z: 0 },
+        drag: 0.3,
+        colourSplinePoints: defaultColourSplinePoints,
+        sizeSplinePoints: defaultSizeSplinePoints,
+    });
+
+    rocket.rightThruster.add(rightFlames._points)
+
+    rightFlames._points.position.y = -10
+    rightFlames._points.position.z = -3.5
+
+
+    middleFlames = new ParticleSystem({
+        parent: scene,
+        camera: camera,
+        particleAmount: 30,
+        life: 3,
+        size: 2,
+        velocity: { x: 0, y: -8, z: 0 },
+        drag: 0.3,
+        colourSplinePoints: defaultColourSplinePoints,
+        sizeSplinePoints: defaultSizeSplinePoints,
+    });
+
+    rocket.shuttle.add(middleFlames._points)
+
+    middleFlames._points.position.y = -9.5
+    middleFlames._points.position.z = -1
+    middleFlames._points.position.x = 3
+
+    balloonFlames = new ParticleSystem({
+        parent: scene,
+        camera: camera,
+        particleAmount: 30,
+        life: 3,
+        size: 0.3,
+        velocity: { x: 0, y: 8, z: 0 },
+        drag: 0.3,
+        colourSplinePoints: defaultColourSplinePoints,
+        sizeSplinePoints: defaultSizeSplinePoints,
+    });
+
+    objects.balloon.model.add(balloonFlames._points)
+
+    balloonFlames._points.position.y = 50
+    // balloonFlames._points.position.z = -1
+    // balloonFlames._points.position.x = 3
+
+    meteorFlames = new ParticleSystem({
+        parent: scene,
+        camera: camera,
+        particleAmount: 30,
+        life: 5,
+        size: 3,
+        velocity: { x: -50, y: 0, z: 0 },
+        drag: 0.0,
+        colourSplinePoints: [
+            {
+                life: 0.0,
+                value: 0xFFFF80,
+            },
+            {
+                life: 0.6,
+                value: 0xd82020,
+            },
+            {
+                life: 0.8,
+                value: 0x292424,
+            },
+        ],
+        sizeSplinePoints: [
+            {
+                life: 0.0,
+                value: 3.0,
+            },
+            {
+                life: 0.5,
+                value: 5.0,
+            },
+            {
+                life: 1.0,
+                value: 10.0,
+            },
+        ],
+    });
+
+    objects.meteor.model.add(meteorFlames._points)
+
+    // meteorFlames._points.position.y = 4
+    // meteorFlames._points.position.z = -1
+    // meteorFlames._points.position.x = 3
+
+    // testmodel.add(objects.meteor.model.clone());
+    // console.log(testmodel);
+    // scene.add(testmodel)
+
+    updateSize();
+    window.addEventListener('resize', updateSize, false);
+
+}
+
+function updateSize() {
+
+
+    // const width = canvas.clientWidth;
+    const width = window.innerWidth;
+    // const height = canvas.clientHeight;
+    const height = window.innerHeight;
+
+    console.log(width, height)
+    // const height = document.body.scrollHeight;
+
+    // if (canvas.width !== width || canvas.height !== height) {
+
+    renderer.setSize(width, height);
+
+    // }
+
+}
+
+function animate() {
+
+    render();
+    requestAnimationFrame(animate);
+
+}
+
+function render() {
+
+    // updateSize();
+
+    // so something moves
+    for (const desc in objects) {
+        if (objects[desc].type === 'planet') {
+            objects[desc].model.rotation.y = Date.now() * 0.0002;
         }
-
-        requestAnimationFrame(render);
     }
 
-    requestAnimationFrame(render);
+    // scene.children[0].rotation.y = Date.now() * 0.001;
+    // rocket.group.rotation.y = Date.now() * 0.0002;
 
 
+
+    const camera = scene.userData.camera;
+
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+
+    //scene.userData.controls.update();
+
+    renderer.render(scene, camera);
 
 
 }
 
-main();
+function gsapAnimation() {
+    gsap.registerPlugin(ScrollTrigger);
+
+    console.log(document.querySelectorAll('.component'))
+
+    const components = document.querySelectorAll('.component');
+
+    let sectionDuration = 0.2;
+    const tau = Math.PI * 2;
+    gsap.set(rocket.group.position, {
+        y: -10
+    });
+    gsap.set(rocket.group.rotation, {
+        y: tau * -.25
+    });
+    gsap.set(middleFlames._points, {
+        visible: false
+    });
+
+
+
+    //Create timeline for each html component
+    timelines = {};
+    for (const component of components) {
+        timelines[component.id] = new gsap.timeline({
+            paused: true,
+            defaults: {
+                duration: sectionDuration,
+                ease: 'power2.inOut'
+            }
+        });
+
+    }
+
+    //Timeline for rocket animation
+    let tl = new gsap.timeline({
+        paused: true,
+        defaults: {
+            duration: sectionDuration,
+            ease: 'power2.inOut'
+        }
+    });
+
+    let delay = 0;
+
+    // tl.to(camera.rotation, {
+    //     y: 10,
+    //     ease: 'power1.in'
+    // }, delay);
+
+    // delay += sectionDuration;
+    tl.to(rocket.group.position, {
+        y: 5,
+        ease: 'power1.in',
+        duration: 0.05
+    }, delay);
+
+    tl.to(rocket.group.rotation, {
+        y: tau * -.45,
+        ease: 'power1.in',
+        duration: 0.05
+    }, delay);
+
+    delay += 0.1;
+
+
+    tl.to(rocket.leftThruster.position, {
+        x: -5,
+        y: -43,
+        z: 2,
+        ease: 'power1.in',
+        duration: 0.05
+
+    }, delay);
+
+    tl.to(rocket.rightThruster.position, {
+        x: -5,
+        y: -43,
+        z: -2,
+        ease: 'power1.in',
+        duration: 0.05
+
+    }, delay);
+
+    tl.to(rocket.leftThruster.rotation, {
+        // x: tau * 0.05,
+        z: tau * 0.15,
+        ease: 'power1.in',
+        duration: 0.05
+
+    }, delay);
+    tl.to(rocket.rightThruster.rotation, {
+        // x: - tau * 0.05,
+        z: tau * 0.15,
+        ease: 'power1.in',
+        duration: 0.05
+
+    }, delay);
+
+    tl.set(rocket.leftThruster, {
+        visible: false
+    })
+    tl.set(rocket.rightThruster, {
+        visible: false
+    })
+
+    tl.set(middleFlames._points, {
+        visible: true
+    }, delay + 0.05);
+
+
+    delay += 0.1;
+
+    tl.to(rocket.fuelTank.position, {
+        x: -3,
+        y: -45,
+        z: 0,
+        ease: 'power1.in',
+        duration: 0.05
+
+    }, delay);
+
+    tl.to(rocket.fuelTank.rotation, {
+        // x: tau * 0.05,
+        z: tau * 0.1,
+        ease: 'power1.in',
+        duration: 0.05
+
+    }, delay);
+
+    tl.set(rocket.fuelTank, {
+        visible: false
+    })
+
+    delay += 0.05;
+
+    tl.to(rocket.group.rotation, {
+        x: 0,
+        y: tau * -0.25,
+        ease: 'power1.in',
+        duration: 0.02
+    }, delay);
+
+    tl.to(rocket.group.scale, {
+        x: 0.4,
+        y: 0.4,
+        z: 0.4,
+        ease: 'power1.in',
+        duration: 0.05
+    }, delay);
+
+
+    tl.to(middleFlames, {
+        _size: 1,
+        ease: 'power1.in',
+        duration: 0.02
+    }, delay);
+
+    delay += 0.05;
+    tl.to(rocket.group.position, {
+        x: 0,
+        y: -5,
+        z: 0,
+        ease: 'power1.in',
+        duration: 0.05
+    }, delay);
+
+    delay += 0.05;
+
+    // Venus orbit animation
+    tl.to(rocket.group.position, {
+        x: 23,
+        // z: -100,
+        y: 0,
+        ease: 'power1.inOut',
+        duration: 0.04
+    }, delay);
+
+    tl.to(rocket.group.position, {
+        z: -60,
+        ease: 'power1.in',
+        duration: 0.02
+    }, delay);
+
+    tl.to(rocket.shuttle.rotation, {
+        x: tau * -0.25,
+        // y: tau * -0.25,
+        ease: 'power1.inOut',
+        duration: 0.04
+    }, delay);
+
+    tl.to(rocket.shuttle.rotation, {
+        z: tau * 0.1,
+        ease: 'power1.inOut',
+        duration: 0.02
+    }, delay);
+
+    delay += 0.02;
+
+    tl.to(rocket.group.position, {
+        z: 0,
+        ease: 'power1.out',
+        duration: 0.02
+    }, delay);
+
+    tl.to(rocket.shuttle.rotation, {
+
+        z: -tau * 0.3,
+        ease: 'power1.inOut',
+        duration: 0.02
+    }, delay);
+
+    delay += 0.02;
+
+    tl.to(rocket.group.position, {
+        x: 0,
+        // z: -100,
+        y: 5,
+        ease: 'power1.inOut',
+        duration: 0.04
+    }, delay);
+
+    tl.to(rocket.group.position, {
+        z: 20,
+        ease: 'power1.in',
+        duration: 0.02
+    }, delay);
+
+    tl.to(rocket.shuttle.rotation, {
+        x: -tau * 0.5,
+
+        z: -tau * 0.5,
+        ease: 'power1.inOut',
+        duration: 0.04
+    }, delay);
+
+    delay += 0.02;
+
+    tl.to(rocket.group.position, {
+        z: 0,
+        ease: 'power1.in',
+        duration: 0.02
+    }, delay);
+
+    tl.to(rocket.shuttle.rotation, {
+        y: tau * 0.5,
+        ease: 'power1.inOut',
+        duration: 0.02
+    }, delay);
+
+    delay += 0.06;
+
+    // Final sun animation
+
+    tl.to(rocket.group.position, {
+        y: 0,
+        x: -15,
+        ease: 'power1.out',
+        duration: 0.04
+    }, delay);
+
+    tl.to(rocket.shuttle.rotation, {
+        x: - tau * 0.25,
+        y: tau * 0.5,
+        z: -tau * 0.8,
+        ease: 'power1.out',
+        duration: 0.04
+    }, delay);
+
+    tl.to(rocket.group.position, {
+        z: 30,
+        ease: 'power1.in',
+        duration: 0.06
+    }, delay);
+
+    delay += 0.04;
+
+    tl.to(rocket.group.position, {
+        x: 0,
+        ease: 'power1.in',
+        duration: 0.03
+    }, delay);
+
+    tl.to(rocket.shuttle.rotation, {
+        x: - tau * 0.25,
+        y: tau * 0.5,
+        z: -tau * 1,
+        ease: 'power1.in',
+        duration: 0.03
+    }, delay);
+
+    delay += 0.03;
+
+    tl.to(rocket.group.position, {
+        z: -200,
+        ease: 'power1.in',
+        duration: 0.05
+    }, delay);
+
+    tl.to(rocket.shuttle.rotation, {
+        // y: tau * 0.6,
+        z: -tau * 1.25,
+        ease: 'power1.inOut',
+        duration: 0.02
+    }, delay);
+
+    // delay += 0.02;
+
+    // tl.to(rocket.shuttle.rotation, {
+    //     x: - tau * 0.5,
+    //     ease: 'power1.inOut',
+    //     duration: 0.03
+    // }, delay);
+
+
+    // delay += 0.1;
+
+    //Scroll trigger for rocket animation
+    ScrollTrigger.create({
+        trigger: ".container",
+        // scrub: true,
+        start: "top top",
+        end: "bottom bottom",
+        markers: true,
+        // animation: tl
+        onUpdate(self) {
+            gsap.to(tl, {
+                progress: 1 - self.progress,
+                ease: "none",
+                overwrite: true,
+                duration: 0,
+            });
+        }
+    });
+
+
+    //---- Balloon animation -----
+    gsap.set(objects.balloon.model.position, {
+        x: 15,
+        y: 22,
+        z: 0,
+    });
+
+    timelines.troposphere.to(objects.balloon.model.position, {
+        x: 10,
+        y: -45,
+        ease: 'power1.in',
+        duration: 0.3
+    }, 0);
+
+    //---- Plane animation -----
+    gsap.set(objects.plane.model.position, {
+        x: 0,
+        y: 30,
+        z: 0,
+    });
+    gsap.set(objects.plane.model.rotation, {
+        // x: 0.25 * tau,
+        y: -0.25 * tau,
+        // z: -0.25 * tau,
+    });
+    timelines.troposphere.to(objects.plane.model.position, {
+        x: -35,
+        y: -30,
+        ease: 'power1.in',
+        duration: 0.3
+    }, 0);
+
+    //---- Jet animation -----
+    gsap.set(objects.jet.model.position, {
+        x: -25,
+        y: 23,
+        z: 0,
+    });
+    gsap.set(objects.jet.model.rotation, {
+        x: 0.25 * tau,
+        y: 0.05 * tau,
+        z: -0.25 * tau,
+    });
+
+    timelines.stratosphere.to(objects.jet.model.rotation, {
+        // x: -5,
+        y: 0.35 * tau,
+        // z: 0.65 * tau,
+        ease: 'power1.inOut',
+        duration: 0.1
+    }, 0);
+
+    timelines.stratosphere.to(objects.jet.model.position, {
+        x: -13,
+        y: 0,
+        ease: 'power1.inOut',
+        duration: 0.1
+    }, 0);
+
+    timelines.stratosphere.to(objects.jet.model.rotation, {
+        // x: -5,
+        y: 0.5 * tau,
+        z: 0.65 * tau,
+        ease: 'power1.inOut',
+        duration: 0.1
+    }, 0.1);
+
+    timelines.stratosphere.to(objects.jet.model.position, {
+        x: -10,
+        y: 10,
+        ease: 'power1.inOut',
+        duration: 0.1
+    }, 0.1);
+
+    timelines.stratosphere.to(objects.jet.model.rotation, {
+        // x: -5,
+        y: 0.85 * tau,
+        z: 0.2 * tau,
+        ease: 'power1.inOut',
+        duration: 0.1
+    }, 0.2);
+
+    timelines.stratosphere.to(objects.jet.model.position, {
+        x: -16,
+        y: -24,
+        ease: 'power1.inOut',
+        duration: 0.1
+    }, 0.2);
+
+    //---- Meteor animation -----
+    gsap.set(objects.meteor.model.position, {
+        x: 15,
+        y: 22,
+        z: 20,
+    });
+    gsap.set(objects.meteor.model.rotation, {
+        x: 0.25 * tau,
+        y: 0.7 * tau,
+        // z: -0.25 * tau,
+    });
+
+    timelines.mesophere.to(objects.meteor.model.position, {
+        x: 0,
+        y: -85,
+        z: -100,
+        ease: 'power1.in',
+        duration: 0.2
+    }, 0);
+
+    timelines.mesophere.to(objects.meteor.model.rotation, {
+        x: 0.2 * tau,
+        y: 0.65 * tau,
+        // z: -0.25 * tau,
+        ease: 'power1.in',
+        duration: 0.2
+    }, 0);
+
+    timelines.mesophere.set(objects.meteor.model, {
+        visible: false
+    });
+
+    //---- Sattelite animation -----
+    gsap.set(objects.satellite.model.position, {
+        x: -25,
+        y: 28,
+        z: 0,
+    });
+    gsap.set(objects.satellite.model.rotation, {
+        x: 0.5 * tau,
+        y: 0.25 * tau,
+        z: -0.05 * tau,
+    });
+
+    timelines.exosphere.to(objects.satellite.model.position, {
+        x: -10,
+        y: -35,
+        z: -30,
+        ease: 'power1.in',
+        duration: 0.2
+    }, 0);
+
+    timelines.exosphere.to(objects.satellite.model.rotation, {
+        // x: -0.5 * tau,
+        y: 1.3 * tau,
+        z: -0 * tau,
+        ease: 'power1.in',
+        duration: 0.2
+    }, 0);
+
+
+    //---- Moon animation -----
+    gsap.set(objects.moon.model.position, {
+        x: -12,
+        y: 28,
+        z: 0,
+    });
+
+    timelines.moon.to(objects.moon.model.position, {
+
+        y: -35,
+        ease: 'power1.in',
+        duration: 0.2
+    }, 0);
+
+    //---- Venus animation -----
+    gsap.set(objects.venus.model.position, {
+        x: 10,
+        y: 35,
+        z: 0,
+    });
+
+    timelines.venus.to(objects.venus.model.position, {
+
+        y: 0,
+        ease: 'power1.out',
+        duration: 0.2
+    }, 0);
+
+    timelines.venus.to(objects.venus.model.position, {
+
+        y: -35,
+        ease: 'power1.in',
+        duration: 0.2
+    }, 0.4);
+
+    //---- Mercury animation -----
+    gsap.set(objects.mercury.model.position, {
+        x: -12,
+        y: 30,
+        z: 0,
+    });
+
+    timelines.mercury.to(objects.mercury.model.position, {
+
+        y: -30,
+        ease: 'power1.inOut',
+        duration: 0.2
+    }, 0);
+
+    //---- Sun animation -----
+    gsap.set(objects.sun.model.position, {
+        x: 0,
+        y: 160,
+        z: -200,
+    });
+
+    timelines.sun.to(objects.sun.model.position, {
+
+        // y: -35,
+        y: 0,
+        ease: 'power4.out',
+        duration: 0.2
+    }, 0);
+
+    for (const timeline in timelines) {
+        console.log(timelines[timeline])
+
+        ScrollTrigger.create({
+            trigger: "#" + timeline,
+            start: "top center",
+            end: "bottom top",
+            markers: true,
+            onUpdate(self) {
+                gsap.to(timelines[timeline], {
+                    progress: 1 - self.progress,
+                    ease: "expo",
+                    overwrite: true,
+                    duration: 0,
+                });
+            }
+        });
+    }
+
+    // for (const desc in objects) {
+    //     if (objects[desc].type === "planet") {
+    //         let tl2 = new gsap.timeline({
+    //             paused: true,
+    //             defaults: {
+    //                 duration: sectionDuration,
+    //                 ease: 'power2.inOut'
+    //             }
+    //         });
+
+
+    //         tl2.to(objects[desc].model.position, {
+    //             y: 0,
+    //             ease: 'power1.in',
+    //         }, 0);
+
+    //         tl2.to(objects[desc].model.position, {
+    //             y: -28,
+    //             ease: 'power1.in',
+    //         }, 0.3);
+
+
+    //         ScrollTrigger.create({
+    //             trigger: "." + desc,
+    //             // scrub: true,
+    //             start: "top center",
+    //             end: "bottom top",
+    //             markers: true,
+    //             // animation: tl
+    //             onUpdate(self) {
+    //                 gsap.to(tl2, {
+    //                     progress: 1 - self.progress,
+    //                     ease: "expo",
+    //                     overwrite: true,
+    //                     duration: 0,
+    //                 });
+    //             }
+    //         });
+    //     }
+    // }
+
+
+
+    // let tl3 = new gsap.timeline({
+    //     // onUpdate: render,
+    //     scrollTrigger: {
+    //         trigger: ".sun",
+    //         scrub: true,
+    //         start: "center center",
+    //         end: "+=3500 bottom",
+    //         pin: true,
+    //         markers: true,
+    //     },
+    //     defaults: {
+    //         duration: sectionDuration,
+    //         ease: 'power2.inOut'
+    //     }
+    // });
+    // let delay3 = 0;
+
+    // tl3.to(objects[0].model.position, {
+    //     y: 0,
+    //     ease: 'power1.in',
+    // }, delay3);
+    // delay3 += sectionDuration;
+
+    // tl3.to(objects[0].model.position, {
+    //     y: 28,
+    //     ease: 'power1.in',
+    // }, delay3);
+    // delay3 += sectionDuration;
+
+
+    // ScrollTrigger.create({
+    //     trigger: '.venus',
+    //     animation: tl2,
+    //     pin: true,
+    //     start: 'center center',
+    //     end: '+=1500 bottom',
+    //     scrub: 1, // I like the 1 sec delay, set to true for exact anime on scroll
+    //     markers: true,
+    // })
+
+}
 
 
 

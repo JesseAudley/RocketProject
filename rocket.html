@@ -10,57 +10,88 @@
 </head>
 
 <body>
+    <canvas id="c"></canvas>
+
     <div class="container">
-        <div class="component loading">
+        <div class="loading">
             <h2>Loading</h2>
         </div>
 
-        <div class="space">
-            <div class="component sun">
-                <div data-diagram='sun' class="object"></div>
+        <div id="stars" class="space">
+            <div id='sun' class="component sun">
                 <h1>Sun</h1>
 
                 <!-- <img src="imgs/solsticeflare.jpg" alt="The sun"> -->
             </div>
-            <div class="component mercury">
-                <div data-diagram='mercury' class="object"></div>
+            <div id='mercury' class="component mercury">
                 <h1>Mercury</h1>
                 <!-- <img src="imgs/True_Mercury.jpg" alt="Mercury"> -->
             </div>
-            <div class="component venus">
-                <div data-diagram='venus' class="object"></div>
+            <div id='venus' class="component venus">
                 <h1>Venus</h1>
             </div>
-            <div class="component moon">
-                <div data-diagram='moon' class="object"></div>
+            <div id='moon' class="component moon">
                 <h1>Moon</h1>
             </div>
 
-            <div class="component exosphere">
+            <div id='exosphere' class="component exosphere">
+                <p>Sattelites live here</p>
                 <h1>Exosphere</h1>
             </div>
 
         </div>
+        <div id='thermosphere' class="component thermosphere">
+            <div class="aurora-container">
+                <div class="aurora">
+                    <div class='aurora-1'></div>
+                    <div class='aurora-2'></div>
+                    <div class='aurora-3'></div>
+                </div>
+                <!-- <div class="aurora">
+                    <div class='aurora-1'></div>
+                    <div class='aurora-2'></div>
+                    <div class='aurora-3'></div>
+                </div>
+                <div class="aurora">
+                    <div class='aurora-1'></div>
+                    <div class='aurora-2'></div>
+                    <div class='aurora-3'></div>
+                </div> -->
+            </div>
+            <p>Aurora polaris</p>
+            <h1>Thermosphere</h1>
+        </div>
         <div class="sky">
 
-            <div class="component thermosphere">
-                <h1>Thermosphere</h1>
-            </div>
-            <div class="component mesophere">
+
+            <div id='mesophere' class="component mesophere">
+
+                <p>Meteorites burn up here</p>
                 <h1>Mesosphere</h1>
             </div>
-            <div class="component stratosphere">
+            <div id='stratosphere' class="component stratosphere">
+                <div class="ozone">
+                    <p>Ozone Layer</p>
+                </div>
+                <p>Jets and ozone layer</p>
                 <h1>Stratosphere</h1>
             </div>
-            <div class="component troposphere">
+            <div id='troposphere' class="component troposphere">
+                <div class='clouds'>
+                    <div class='clouds-1'></div>
+                    <div class='clouds-2'></div>
+                    <div class='clouds-3'></div>
+                </div>
+                <p>Clouds, commercial planes and hot air balloons</p>
                 <h1>Troposphere</h1>
             </div>
-            <div class="component earth">
-                <div data-diagram='rocket' class="object"></div>
+            <div id='earth' class="component earth">
+                <div id="rocket" data-diagram='rocket' class="object"></div>
                 <!-- <img src="imgs/launch.jpg" alt="Launch background"> -->
+
             </div>
             <h1>Blast Off</h1>
-            <div class="trigger"></div>
+            <!-- <div class="trigger"></div> -->
         </div>
 
 
@@ -68,11 +99,14 @@
     <script src="js/three.js"></script>
     <script src="js/OrbitControls.js"></script>
     <script src="js/GLTFLoader.js"></script>
-    <script src="js/STLLoader.js"></script>
+    <script src="js/MTLLoader.js"></script>
+    <script src="js/OBJLoader.js"></script>
+    <script src="gsap/gsap.min.js"></script>
+    <script src="gsap/ScrollTrigger.min.js"></script>
+    <script src="gsap/ScrollToPlugin.min.js"></script>
     <script
         src="https://r105.threejsfundamentals.org/threejs/resources/threejs/r105/js/controls/TrackballControls.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.3.1/gsap.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.3.1/ScrollTrigger.min.js"></script>
+    <script src="ParticleSystem.js"></script>
     <script src="rocket.js"></script>
 </body>
 
