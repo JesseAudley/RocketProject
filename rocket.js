@@ -300,7 +300,7 @@ function init() {
         ],
     });
 
-    objects.meteor.model.add(meteorFlames._points)
+    objects.meteor.model.add(meteorFlames._points);
 
     // meteorFlames._points.position.y = 4
     // meteorFlames._points.position.z = -1
@@ -319,7 +319,6 @@ function updateSize() {
     // const height = canvas.clientHeight;
     const height = window.innerHeight;
 
-    console.log(width, height)
     // const height = document.body.scrollHeight;
 
     // if (canvas.width !== width || canvas.height !== height) {
@@ -348,17 +347,12 @@ function render() {
         }
     }
 
-    // scene.children[0].rotation.y = Date.now() * 0.001;
-    // rocket.group.rotation.y = Date.now() * 0.0002;
-
-
 
     const camera = scene.userData.camera;
 
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
 
-    //scene.userData.controls.update();
 
     renderer.render(scene, camera);
 
@@ -366,9 +360,9 @@ function render() {
 }
 
 function gsapAnimation() {
-    gsap.registerPlugin(ScrollTrigger);
+    window.scrollTo(0, document.body.scrollHeight);
 
-    console.log(document.querySelectorAll('.component'))
+    gsap.registerPlugin(ScrollTrigger);
 
     const components = document.querySelectorAll('.component');
 
@@ -384,7 +378,22 @@ function gsapAnimation() {
         visible: false
     });
 
+    gsap.set(leftFlames._points, {
+        visible: false
+    });
 
+    gsap.set(rightFlames._points, {
+        visible: false
+    });
+
+    gsap.to('.loading', {
+        opacity: 0
+    });
+
+
+    gsap.to('canvas', {
+        opacity: 1
+    });
 
     //Create timeline for each html component
     timelines = {};
@@ -408,7 +417,22 @@ function gsapAnimation() {
         }
     });
 
-    let delay = 0;
+    let delay = 0.01;
+
+
+
+    tl.to('.scroll', {
+        opacity: 0,
+        duration: 0.01
+    })
+
+    tl.set(leftFlames._points, {
+        visible: true
+    });
+
+    tl.set(rightFlames._points, {
+        visible: true
+    });
 
     tl.to(rocket.group.position, {
         y: 5,
@@ -526,7 +550,7 @@ function gsapAnimation() {
         duration: 0.05
     }, delay);
 
-    delay += 0.05;
+    delay += 0.04;
 
     // Venus orbit animation
     tl.to(rocket.group.position, {
@@ -609,7 +633,7 @@ function gsapAnimation() {
         duration: 0.02
     }, delay);
 
-    delay += 0.06;
+    delay += 0.07;
 
     // Final sun animation
 
@@ -672,7 +696,7 @@ function gsapAnimation() {
         // scrub: true,
         start: "top top",
         end: "bottom bottom",
-        markers: true,
+        markers: false,
         // animation: tl
         onUpdate(self) {
             gsap.to(tl, {
@@ -906,7 +930,7 @@ function gsapAnimation() {
             trigger: "#" + timeline,
             start: "top center",
             end: "bottom top",
-            markers: true,
+            markers: false,
             onUpdate(self) {
                 gsap.to(timelines[timeline], {
                     progress: 1 - self.progress,
