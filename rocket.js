@@ -105,36 +105,12 @@ function init() {
     scene.userData.camera = camera;
 
 
-    const frustum = new THREE.Frustum()
-    const matrix = new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
-    frustum.setFromProjectionMatrix(matrix)
-
-
     for (const desc in objects) {
         console.log(objects[desc].modelPath);
         loader.load(objects[desc].modelPath, function (gltf) {
             objects[desc].model.scale.copy(objects[desc].scale);
             objects[desc].model.add(gltf.scene);
-            objects[desc].model.traverseVisible((child) => {
-                if (child.isMesh) {
-                    // while (frustum.intersectsObject(child)) {
-                    //     objects[desc].model.position.y += 1;
-                    // }
-                    // child.geometry.position.y += 10000;
-                    // child.geometry.computeBoundingSphere()
-                    // console.log(child)
-                    // console.log(frustum.intersectsObject(child))
-                    // console.log(frustum.intersectsSphere(child.geometry.boundingSphere))
-                    // console.log(frustum.containsPoint(child.position))
-                    // console.log(frustum.containsPoint(objects[desc].model.position))
-                }
-            })
-            // while (frustum.intersectsObject(objects[desc].model)) {
-            //     objects[desc].model.position.y += 1;
-            // };
-
             scene.add(objects[desc].model);
-            // console.log(frustum.intersectsObject(objects[desc].model));
         });
     }
 
@@ -153,20 +129,7 @@ function init() {
         rocket.group.add(rocket.fuelTank);
         rocket.group.add(rocket.rightThruster);
 
-        console.log(rocket.group)
-        // rocket.group.rotation.x = 10
-
         scene.add(rocket.group);
-        rocket.group.traverse(function (test) {
-            // test.position.y += 10
-            // console.log(test)
-            if (test.isMesh) {
-                // test.position.y = 10
-                // console.log(frustum.intersectsObject(test))
-            }
-            // isVisible = true
-        })
-
 
         gsapAnimation()
     });
@@ -176,15 +139,6 @@ function init() {
     // the element that represents the area we want to render the scene
     scene.userData.element = canvas;
 
-
-
-
-    // const controls = new THREE.OrbitControls(scene.userData.camera, scene.userData.element);
-    // controls.minDistance = 2;
-    // controls.maxDistance = 5;
-    // controls.enablePan = false;
-    // controls.enableZoom = false;
-    // scene.userData.controls = controls;
 
     light = new THREE.PointLight(0xffffff, 1.5);
     this.light.position.z = 50;
@@ -201,8 +155,6 @@ function init() {
     // scene.add(light);
 
 
-
-
     renderer = new THREE.WebGLRenderer({
         canvas: canvas,
         alpha: true,
@@ -211,7 +163,6 @@ function init() {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.setPixelRatio(window.devicePixelRatio);
-    // document.body.appendChild(renderer.domElement);
 
     const defaultColourSplinePoints = [
         {
@@ -355,10 +306,6 @@ function init() {
     // meteorFlames._points.position.z = -1
     // meteorFlames._points.position.x = 3
 
-    // testmodel.add(objects.meteor.model.clone());
-    // console.log(testmodel);
-    // scene.add(testmodel)
-
     updateSize();
     window.addEventListener('resize', updateSize, false);
 
@@ -394,7 +341,7 @@ function render() {
 
     // updateSize();
 
-    // so something moves
+    // so planets move
     for (const desc in objects) {
         if (objects[desc].type === 'planet') {
             objects[desc].model.rotation.y = Date.now() * 0.0002;
@@ -463,12 +410,6 @@ function gsapAnimation() {
 
     let delay = 0;
 
-    // tl.to(camera.rotation, {
-    //     y: 10,
-    //     ease: 'power1.in'
-    // }, delay);
-
-    // delay += sectionDuration;
     tl.to(rocket.group.position, {
         y: 5,
         ease: 'power1.in',
@@ -724,16 +665,6 @@ function gsapAnimation() {
         duration: 0.02
     }, delay);
 
-    // delay += 0.02;
-
-    // tl.to(rocket.shuttle.rotation, {
-    //     x: - tau * 0.5,
-    //     ease: 'power1.inOut',
-    //     duration: 0.03
-    // }, delay);
-
-
-    // delay += 0.1;
 
     //Scroll trigger for rocket animation
     ScrollTrigger.create({
@@ -987,88 +918,6 @@ function gsapAnimation() {
         });
     }
 
-    // for (const desc in objects) {
-    //     if (objects[desc].type === "planet") {
-    //         let tl2 = new gsap.timeline({
-    //             paused: true,
-    //             defaults: {
-    //                 duration: sectionDuration,
-    //                 ease: 'power2.inOut'
-    //             }
-    //         });
-
-
-    //         tl2.to(objects[desc].model.position, {
-    //             y: 0,
-    //             ease: 'power1.in',
-    //         }, 0);
-
-    //         tl2.to(objects[desc].model.position, {
-    //             y: -28,
-    //             ease: 'power1.in',
-    //         }, 0.3);
-
-
-    //         ScrollTrigger.create({
-    //             trigger: "." + desc,
-    //             // scrub: true,
-    //             start: "top center",
-    //             end: "bottom top",
-    //             markers: true,
-    //             // animation: tl
-    //             onUpdate(self) {
-    //                 gsap.to(tl2, {
-    //                     progress: 1 - self.progress,
-    //                     ease: "expo",
-    //                     overwrite: true,
-    //                     duration: 0,
-    //                 });
-    //             }
-    //         });
-    //     }
-    // }
-
-
-
-    // let tl3 = new gsap.timeline({
-    //     // onUpdate: render,
-    //     scrollTrigger: {
-    //         trigger: ".sun",
-    //         scrub: true,
-    //         start: "center center",
-    //         end: "+=3500 bottom",
-    //         pin: true,
-    //         markers: true,
-    //     },
-    //     defaults: {
-    //         duration: sectionDuration,
-    //         ease: 'power2.inOut'
-    //     }
-    // });
-    // let delay3 = 0;
-
-    // tl3.to(objects[0].model.position, {
-    //     y: 0,
-    //     ease: 'power1.in',
-    // }, delay3);
-    // delay3 += sectionDuration;
-
-    // tl3.to(objects[0].model.position, {
-    //     y: 28,
-    //     ease: 'power1.in',
-    // }, delay3);
-    // delay3 += sectionDuration;
-
-
-    // ScrollTrigger.create({
-    //     trigger: '.venus',
-    //     animation: tl2,
-    //     pin: true,
-    //     start: 'center center',
-    //     end: '+=1500 bottom',
-    //     scrub: 1, // I like the 1 sec delay, set to true for exact anime on scroll
-    //     markers: true,
-    // })
 
 }
 
