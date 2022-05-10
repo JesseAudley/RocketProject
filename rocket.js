@@ -1,7 +1,10 @@
+// The first part to this is loading all of the various 3D models in the init function
+// After that, the gsapAnimation function is called which handles all of the scrolling animation
 
+
+// Scroll to bottom of page on load
 document.addEventListener('DOMContentLoaded', (event) => {
     window.scrollTo(0, document.body.scrollHeight);
-    console.log('DOM fully loaded and parsed', document.body.scrollHeight);
 });
 
 
@@ -9,6 +12,7 @@ let canvas, renderer;
 
 const scene = new THREE.Scene();
 const loader = new THREE.GLTFLoader();
+
 const objects = {
     sun: {
         type: 'planet',
@@ -65,13 +69,16 @@ const objects = {
         scale: new THREE.Vector3(0.2, 0.2, 0.2),
     },
     balloon: {
+        //https://sketchfab.com/3d-models/mongolfiera-hotairballoon-c421c1db43154a21b3415b3068f76ba4
         type: 'object',
         model: new THREE.Object3D(),
         modelPath: 'models/balloon.glb',
         scale: new THREE.Vector3(0.04, 0.04, 0.04),
     },
 };
+
 const rocket = {
+    //https://sketchfab.com/3d-models/space-shuttle-3d94c44b36564ffcaea1d02dff6a4c74
     name: 'rocket',
     group: new THREE.Group(),
     modelPath: 'models/SPACE SHUTTLE_modified.glb',
@@ -81,10 +88,6 @@ const rocket = {
     fuelTank: new THREE.Group(),
     scale: new THREE.Vector3(0.7, 0.7, 0.7),
 };
-
-const testmodel = new THREE.Object3D();
-init();
-animate();
 
 function init() {
 
@@ -99,14 +102,11 @@ function init() {
     const camera = new THREE.PerspectiveCamera(fov, 1, near, far);
 
     camera.position.set(0, 0, 50);
-    // camera.position.set(0, 0, window.innerWidth / 30);
     camera.lookAt(0, 0, 0);
-    // scene.add(camera);
     scene.userData.camera = camera;
 
-
+    // Load all objects
     for (const desc in objects) {
-        console.log(objects[desc].modelPath);
         loader.load(objects[desc].modelPath, function (gltf) {
             objects[desc].model.scale.copy(objects[desc].scale);
             objects[desc].model.add(gltf.scene);
@@ -115,7 +115,7 @@ function init() {
     }
 
 
-
+    // Load rocket and assign to groups
     loader.load(rocket.modelPath, function (gltf) {
         rocket.group.scale.copy(rocket.scale);
 
@@ -131,6 +131,7 @@ function init() {
 
         scene.add(rocket.group);
 
+        // Call animation function after all models are loaded
         gsapAnimation()
     });
 
@@ -259,8 +260,7 @@ function init() {
     objects.balloon.model.add(balloonFlames._points)
 
     balloonFlames._points.position.y = 50
-    // balloonFlames._points.position.z = -1
-    // balloonFlames._points.position.x = 3
+
 
     meteorFlames = new ParticleSystem({
         parent: scene,
@@ -302,31 +302,16 @@ function init() {
 
     objects.meteor.model.add(meteorFlames._points);
 
-    // meteorFlames._points.position.y = 4
-    // meteorFlames._points.position.z = -1
-    // meteorFlames._points.position.x = 3
-
     updateSize();
     window.addEventListener('resize', updateSize, false);
 
 }
 
 function updateSize() {
-
-
-    // const width = canvas.clientWidth;
     const width = window.innerWidth;
-    // const height = canvas.clientHeight;
     const height = window.innerHeight;
 
-    // const height = document.body.scrollHeight;
-
-    // if (canvas.width !== width || canvas.height !== height) {
-
     renderer.setSize(width, height);
-
-    // }
-
 }
 
 function animate() {
@@ -337,8 +322,6 @@ function animate() {
 }
 
 function render() {
-
-    // updateSize();
 
     // so planets move
     for (const desc in objects) {
@@ -358,6 +341,7 @@ function render() {
 
 
 }
+
 
 function gsapAnimation() {
     window.scrollTo(0, document.body.scrollHeight);
@@ -388,7 +372,7 @@ function gsapAnimation() {
 
     gsap.to('.loading', {
         opacity: 0
-    });
+    }, 1.5);
 
 
     gsap.to('canvas', {
@@ -468,14 +452,12 @@ function gsapAnimation() {
     }, delay);
 
     tl.to(rocket.leftThruster.rotation, {
-        // x: tau * 0.05,
         z: tau * 0.15,
         ease: 'power1.in',
         duration: 0.05
 
     }, delay);
     tl.to(rocket.rightThruster.rotation, {
-        // x: - tau * 0.05,
         z: tau * 0.15,
         ease: 'power1.in',
         duration: 0.05
@@ -506,7 +488,6 @@ function gsapAnimation() {
     }, delay);
 
     tl.to(rocket.fuelTank.rotation, {
-        // x: tau * 0.05,
         z: tau * 0.1,
         ease: 'power1.in',
         duration: 0.05
@@ -555,7 +536,6 @@ function gsapAnimation() {
     // Venus orbit animation
     tl.to(rocket.group.position, {
         x: 23,
-        // z: -100,
         y: 0,
         ease: 'power1.inOut',
         duration: 0.04
@@ -569,7 +549,6 @@ function gsapAnimation() {
 
     tl.to(rocket.shuttle.rotation, {
         x: tau * -0.25,
-        // y: tau * -0.25,
         ease: 'power1.inOut',
         duration: 0.04
     }, delay);
@@ -599,7 +578,6 @@ function gsapAnimation() {
 
     tl.to(rocket.group.position, {
         x: 0,
-        // z: -100,
         y: 5,
         ease: 'power1.inOut',
         duration: 0.04
@@ -636,7 +614,6 @@ function gsapAnimation() {
     delay += 0.07;
 
     // Final sun animation
-
     tl.to(rocket.group.position, {
         y: 0,
         x: -15,
@@ -677,7 +654,7 @@ function gsapAnimation() {
     delay += 0.03;
 
     tl.to(rocket.group.position, {
-        z: -200,
+        z: -270,
         ease: 'power1.in',
         duration: 0.05
     }, delay);
@@ -919,13 +896,23 @@ function gsapAnimation() {
 
         // y: -35,
         y: 0,
-        ease: 'power4.out',
+        ease: 'power2.out',
         duration: 0.2
     }, 0);
 
-    for (const timeline in timelines) {
-        console.log(timelines[timeline])
+    timelines.sun.to(canvas, {
+        opacity: 0,
+        duration: 0.05
+    }, 0.3);
 
+    timelines.sun.to(canvas, {
+        opacity: 0,
+        duration: 0.02
+    }, 0.35);
+
+
+    // Loop through container html classes and assign scroll triggers for each
+    for (const timeline in timelines) {
         ScrollTrigger.create({
             trigger: "#" + timeline,
             start: "top center",
@@ -945,5 +932,6 @@ function gsapAnimation() {
 
 }
 
-
+init();
+animate();
 

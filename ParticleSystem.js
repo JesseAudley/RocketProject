@@ -1,4 +1,5 @@
-
+// The base code in this file was written by SimonDev
+// See this link for more details of how it works: https://www.youtube.com/watch?v=OFqENgtqRAY
 
 const _VS = `
 uniform float pointMultiplier;
